@@ -36,3 +36,6 @@ Thumbs.db
 
 # 로그
 *.log
+
+# API 키 (절대 git에 올리지 말것!)
+.env

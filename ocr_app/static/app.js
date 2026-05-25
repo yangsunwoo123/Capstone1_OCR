@@ -576,7 +576,7 @@ function renderSuggestionChips(container, fieldKey, suggestions, source) {
 
   const label = document.createElement("span");
   label.className = "ai-label";
-  label.textContent = source === "claude" ? "🤖 AI 추천:" : "후보:";
+  label.textContent = source === "gpt" ? "🤖 GPT 추천:" : "후보:";
   container.appendChild(label);
 
   suggestions.forEach((s) => {
