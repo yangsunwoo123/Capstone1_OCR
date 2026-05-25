@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>직불금 OCR 인식 시스템</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel upload-panel">
+        <header class="panel-header">
+          <h1>스캔 이미지 업로드</h1>
+          <p>작성된 직불금 신청서 스캔본을 업로드합니다. (최대 5페이지)</p>
+        </header>
+        <label id="dropzone" class="dropzone">
+          <input id="file-input" type="file" accept="image/*" multiple hidden>
+          <span>파일을 여기로 끌어오거나 클릭해서 선택 후 자동 업로드</span>
+        </label>
+        <div class="upload-meta">
+          <strong id="upload-summary">업로드된 이미지 없음</strong>
+          <span id="save-status"></span>
+        </div>
+        <div class="toolbar">
+          <button id="prev-image" class="nav-button" type="button">&#8592;</button>
+          <span id="image-counter">0 / 0</span>
+          <button id="next-image" class="nav-button" type="button">&#8594;</button>
+        </div>
+        <div id="image-stage" class="image-stage empty">
+          <p>업로드한 이미지가 여기에 표시됩니다.</p>
+        </div>
+        <div id="image-pager" class="image-pager"></div>
+      </section>
+
+      <section class="center-panel">
+        <button id="recognize-button" class="recognize-button" type="button" disabled>인식 시작</button>
+        <div class="progress-card">
+          <div class="progress-bar"><span id="progress-fill"></span></div>
+          <strong id="progress-label">0%</strong>
+        </div>
+      </section>
+
+      <section class="panel form-panel">
+        <header class="panel-header">
+          <h2>직불금 등록신청서</h2>
+          <p id="selected-form-description">기본직접지불금 지급대상자 등록신청서(농업인용) — 5페이지 양식</p>
+        </header>
+
+        <section class="form-template-pages">
+          <h3>양식 원본 (템플릿)</h3>
+          <p class="muted-text">업로드된 이미지와 아래 원본을 비교하여 손글씨를 인식합니다.</p>
+          <div id="template-thumbs" class="template-thumbs"></div>
+        </section>
+
+        <section class="form-preview">
+          <div class="section-title">
+            <h3>인식 결과</h3>
+          </div>
+          <div id="form-preview-canvas" class="form-preview-canvas empty">
+            <p>인식 결과가 여기에 표시됩니다.</p>
+          </div>
+          <form id="form-editor" class="stacked-fields"></form>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer-bar">
+      <button id="save-button" type="button">저장</button>
+    </footer>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

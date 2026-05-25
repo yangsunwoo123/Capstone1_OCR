@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# 업로드/저장 파일 (개인정보 보호)
+uploads/
+storage/
+artifacts/
+runs/
+reports/
+
+# DB 파일 (초기화 후 생성됨)
+forms.db
+
+# 폼 에셋 (대용량)
+form_assets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
