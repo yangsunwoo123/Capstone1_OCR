@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import uuid
 from collections import defaultdict
 from dataclasses import asdict
@@ -264,7 +265,10 @@ def command_integration_check(args: argparse.Namespace) -> Path:
 
 
 def command_serve(args: argparse.Namespace) -> None:
-    run_server(WebConfig(host=args.host, port=args.port))
+    # 클라우드 배포 환경(Render 등)에서는 PORT 환경변수를 우선 사용
+    port = int(os.environ.get("PORT", args.port))
+    host = os.environ.get("HOST", args.host)
+    run_server(WebConfig(host=host, port=port))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -332,8 +336,8 @@ def build_parser() -> argparse.ArgumentParser:
     integration.set_defaults(handler=command_integration_check)
 
     serve = subparsers.add_parser("serve", help="Run the backend/frontend server")
-    serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"))
+    serve.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)))
     serve.set_defaults(handler=command_serve)
 
     return parser

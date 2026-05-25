@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: capstone-ocr
+    env: python
+    region: singapore        # 한국에서 가장 가까운 리전
+    plan: free
+    buildCommand: pip install -r requirements.txt && python main.py seed-forms
+    startCommand: python main.py serve
+    envVars:
+      - key: PORT
+        value: 10000
