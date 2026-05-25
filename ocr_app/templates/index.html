@@ -66,7 +66,54 @@
 
     <footer class="footer-bar">
       <button id="save-button" type="button">저장</button>
+
+      <!-- 저장 결과 카드 -->
+      <div id="save-result-card" class="save-result-card">
+        <h4>저장된 파일</h4>
+        <div class="save-file-row public-row">
+          <span class="save-file-icon">📄</span>
+          <div class="save-file-info">
+            <div class="save-file-label">공개용 파일 <span class="save-file-badge badge-public">마스킹</span></div>
+            <div class="save-file-name" id="public-file-name">—</div>
+          </div>
+        </div>
+        <div class="save-file-row private-row">
+          <span class="save-file-icon">🔐</span>
+          <div class="save-file-info">
+            <div class="save-file-label">
+              전체 파일 <span class="save-file-badge badge-private" id="private-badge">암호화</span>
+            </div>
+            <div class="save-file-name" id="private-file-name">—</div>
+          </div>
+        </div>
+      </div>
     </footer>
+
+    <!-- 생년월일 입력 모달 -->
+    <div id="birthdate-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h2>🔐 저장 암호 설정</h2>
+        <p>
+          민원인의 생년월일 <strong>6자리</strong>를 입력하세요.<br>
+          이 숫자가 <strong>전체 파일의 비밀번호</strong>가 됩니다.<br>
+          <small style="color:#bc2f2f;">예: 1990년 1월 1일 → 900101</small>
+        </p>
+        <input
+          id="birthdate-input"
+          class="modal-birthdate-input"
+          type="text"
+          inputmode="numeric"
+          maxlength="6"
+          placeholder="YYMMDD"
+          autocomplete="off"
+        >
+        <div class="modal-actions">
+          <button id="modal-cancel" class="modal-cancel-btn" type="button">취소</button>
+          <button id="modal-confirm" class="modal-confirm-btn" type="button" disabled>저장하기</button>
+        </div>
+      </div>
+    </div>
+
     <script src="/static/app.js"></script>
   </body>
 </html>

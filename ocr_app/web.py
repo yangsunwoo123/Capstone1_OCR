@@ -26,7 +26,7 @@ from .config import (
 )
 from .forms import FormRepository, build_prefill, validate_form_payload
 from .inference import RecognitionService
-from .storage import save_payload
+from .storage import save_payload, save_two_files
 
 
 @dataclass(slots=True)
@@ -386,23 +386,48 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json_body()
             session_id = str(payload.get("session_id", "")).strip()
-            form_id = str(payload.get("form_id", "")).strip()
-            values = payload.get("values", {})
+            form_id    = str(payload.get("form_id", "")).strip()
+            birthdate  = str(payload.get("birthdate", "")).strip()
+            values     = payload.get("values", {})
             recognition = payload.get("recognition", {})
+
             if not session_id or not form_id:
                 raise ValueError("저장할 세션과 양식 정보가 필요합니다.")
-            target_path = self.state.storage_dir / f"{session_id}_{form_id}.json"
-            saved_path = save_payload(
-                {
-                    "session_id": session_id,
-                    "form_id": form_id,
-                    "values": values,
-                    "recognition": recognition,
-                },
-                destination=target_path,
+            clean_bd = "".join(c for c in birthdate if c.isdigit())
+            if len(clean_bd) < 6:
+                raise ValueError("암호화를 위한 생년월일 6자리(YYMMDD)를 입력해야 합니다.")
+
+            full_payload = {
+                "session_id":  session_id,
+                "form_id":     form_id,
+                "values":      values,
+                "recognition": recognition,
+            }
+
+            public_path, private_path, encrypted = save_two_files(
+                full_payload,
+                birthdate=clean_bd,
+                storage_dir=self.state.storage_dir,
+                session_id=session_id,
+                form_id=form_id,
             )
-            self.state.form_repository.save_submission(form_id=form_id, session_id=session_id, storage_path=str(saved_path))
-            self._send_json({"saved_path": str(saved_path)})
+
+            self.state.form_repository.save_submission(
+                form_id=form_id,
+                session_id=session_id,
+                storage_path=str(public_path),
+            )
+
+            self._send_json({
+                "public_path":  str(public_path),
+                "private_path": str(private_path),
+                "encrypted":    encrypted,
+                "message": (
+                    "저장 완료\n"
+                    f"① 공개용(마스킹): {public_path.name}\n"
+                    f"② {'암호화' if encrypted else '전체(미암호화)'}: {private_path.name}"
+                ),
+            })
         except ValueError as error:
             self._send_error_json(HTTPStatus.BAD_REQUEST, str(error))
 

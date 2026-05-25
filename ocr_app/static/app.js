@@ -30,6 +30,14 @@ const progressLabel = document.getElementById("progress-label");
 const imageCounter = document.getElementById("image-counter");
 const saveButton = document.getElementById("save-button");
 const saveStatus = document.getElementById("save-status");
+const birthdateModal  = document.getElementById("birthdate-modal");
+const birthdateInput  = document.getElementById("birthdate-input");
+const modalConfirmBtn = document.getElementById("modal-confirm");
+const modalCancelBtn  = document.getElementById("modal-cancel");
+const saveResultCard  = document.getElementById("save-result-card");
+const publicFileName  = document.getElementById("public-file-name");
+const privateFileName = document.getElementById("private-file-name");
+const privateBadge    = document.getElementById("private-badge");
 const uploadSummary = document.getElementById("upload-summary");
 const templateThumbs = document.getElementById("template-thumbs");
 
@@ -473,27 +481,92 @@ async function recognize() {
   }
 }
 
+/* ── 모달 열기/닫기 ── */
+function openBirthdateModal() {
+  birthdateInput.value = "";
+  modalConfirmBtn.disabled = true;
+  birthdateModal.classList.remove("hidden");
+  birthdateInput.focus();
+}
+
+function closeBirthdateModal() {
+  birthdateModal.classList.add("hidden");
+}
+
+/* 6자리 숫자 입력될 때만 확인 버튼 활성화 */
+birthdateInput.addEventListener("input", () => {
+  const digits = birthdateInput.value.replace(/\D/g, "");
+  birthdateInput.value = digits.slice(0, 6);
+  modalConfirmBtn.disabled = digits.length < 6;
+});
+
+modalCancelBtn.addEventListener("click", () => {
+  closeBirthdateModal();
+  setStatus("저장이 취소되었습니다.");
+});
+
+/* 모달 바깥 클릭 시 닫기 */
+birthdateModal.addEventListener("click", (e) => {
+  if (e.target === birthdateModal) closeBirthdateModal();
+});
+
+/* ── 실제 저장 호출 ── */
+async function doSave(birthdate) {
+  const response = await fetch("/api/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id:  state.sessionId,
+      form_id:     state.selectedFormId,
+      values:      state.formValues,
+      recognition: state.recognitionPayload.documents,
+      birthdate:   birthdate,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.error) {
+    throw new Error(payload.error || "저장 실패");
+  }
+  return payload;
+}
+
+/* ── 저장 결과 카드 표시 ── */
+function showSaveResult(payload) {
+  const publicName  = payload.public_path  ? payload.public_path.split(/[\\/]/).pop()  : "—";
+  const privateName = payload.private_path ? payload.private_path.split(/[\\/]/).pop() : "—";
+  publicFileName.textContent  = publicName;
+  privateFileName.textContent = privateName;
+  if (privateBadge) {
+    privateBadge.textContent = payload.encrypted ? "AES-256 암호화" : "저장됨(암호화 없음)";
+    privateBadge.style.background = payload.encrypted ? "#ffe4cc" : "#eee";
+  }
+  saveResultCard.classList.add("visible");
+}
+
+/* ── 저장 버튼 클릭 → 모달 표시 ── */
 async function saveResult() {
   if (!state.sessionId || !state.recognitionPayload) {
     setStatus("먼저 인식을 완료해야 합니다.", true);
     return;
   }
-  const response = await fetch("/api/save", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      session_id: state.sessionId,
-      form_id: state.selectedFormId,
-      values: state.formValues,
-      recognition: state.recognitionPayload.documents,
-    }),
-  });
-  const payload = await response.json();
-  setStatus(
-    response.ok && payload.saved_path ? `저장 완료: ${payload.saved_path}` : (payload.error || "저장 실패"),
-    !response.ok,
-  );
+  openBirthdateModal();
 }
+
+/* ── 모달 확인 → 저장 실행 ── */
+modalConfirmBtn.addEventListener("click", async () => {
+  const birthdate = birthdateInput.value.replace(/\D/g, "");
+  if (birthdate.length < 6) return;
+  closeBirthdateModal();
+  setStatus("저장 중...");
+  saveResultCard.classList.remove("visible");
+  try {
+    const payload = await doSave(birthdate);
+    setStatus("✅ 저장 완료 — 두 파일이 생성되었습니다.");
+    showSaveResult(payload);
+  } catch (err) {
+    setStatus("저장 실패: " + err.message, true);
+  }
+});
 
 function renderTemplateThumbs(images) {
   templateThumbs.innerHTML = "";

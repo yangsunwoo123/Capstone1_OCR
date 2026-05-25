@@ -501,3 +501,173 @@ body {
     align-items: stretch;
   }
 }
+
+/* ───── 생년월일 입력 모달 ───── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 30, 45, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-backdrop.hidden {
+  display: none;
+}
+
+.modal-card {
+  background: white;
+  border-radius: 24px;
+  padding: 36px 40px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 24px 64px rgba(15, 30, 45, 0.22);
+}
+
+.modal-card h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.modal-card p {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.modal-birthdate-input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2px solid var(--accent);
+  font-size: 22px;
+  letter-spacing: 6px;
+  text-align: center;
+  font: inherit;
+  margin-bottom: 20px;
+  outline: none;
+}
+
+.modal-birthdate-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-weak);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modal-cancel-btn {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.modal-confirm-btn {
+  padding: 10px 24px;
+  background: var(--ink);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.modal-confirm-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ───── 저장 결과 카드 ───── */
+.save-result-card {
+  margin-top: 12px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  display: none;
+}
+
+.save-result-card.visible {
+  display: block;
+}
+
+.save-result-card h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.save-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.save-file-row.public-row {
+  background: #eaf4ff;
+  border: 1px solid #b8d9f5;
+}
+
+.save-file-row.private-row {
+  background: #fff4ea;
+  border: 1px solid #f5d0b8;
+}
+
+.save-file-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.save-file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.save-file-label {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.save-file-name {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.save-file-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.badge-public {
+  background: #d0eaff;
+  color: #1a5fa8;
+}
+
+.badge-private {
+  background: #ffe4cc;
+  color: #a84a1a;
+}
