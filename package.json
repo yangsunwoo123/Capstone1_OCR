@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "화성시 민원서류 손글씨 자동 인식 시스템 (Python 백엔드)",
   "scripts": {
-    "build": "echo '⚠️  이 프로젝트는 Python 웹 서버입니다. Cloudflare Pages 대신 Render.com을 사용하세요. https://render.com'"
+    "build": "python build_static.py"
   },
   "private": true
 }

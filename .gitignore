@@ -8,7 +8,7 @@ env/
 venv/
 .venv/
 *.egg-info/
-dist/
+# dist/ 는 Cloudflare Pages 빌드 결과물이므로 제외하지 않음
 build/
 
 # 업로드/저장 파일 (개인정보 보호)
