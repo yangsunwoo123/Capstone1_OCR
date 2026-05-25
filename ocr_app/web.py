@@ -190,6 +190,9 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
         if self._is_route(self.path, "/api/recognize-region"):
             self._handle_recognize_region()
             return
+        if self._is_route(self.path, "/api/suggest"):
+            self._handle_suggest()
+            return
         self._send_error_json(HTTPStatus.NOT_FOUND, "지원하지 않는 경로입니다.")
 
     def _handle_form_upsert(self) -> None:
@@ -430,6 +433,39 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
             })
         except ValueError as error:
             self._send_error_json(HTTPStatus.BAD_REQUEST, str(error))
+
+
+    def _handle_suggest(self) -> None:
+        """
+        POST /api/suggest
+        Body: { text, field_name?, candidates?, context? }
+        → { suggestions: string[], source: "claude"|"beam_search" }
+        """
+        try:
+            payload       = self._read_json_body()
+            text          = str(payload.get("text", "")).strip()
+            field_name    = str(payload.get("field_name", "")).strip()
+            raw_cands     = payload.get("candidates", [])
+            raw_ctx       = payload.get("context", [])
+
+            if not text:
+                raise ValueError("text 파라미터가 필요합니다.")
+
+            candidates    = [str(c) for c in raw_cands if str(c).strip()] if isinstance(raw_cands, list) else []
+            context_texts = [str(c) for c in raw_ctx  if str(c).strip()] if isinstance(raw_ctx,   list) else []
+
+            from .suggestion import get_suggestions
+            suggestions, source = get_suggestions(
+                text=text,
+                field_name=field_name,
+                candidates=candidates,
+                context_texts=context_texts,
+            )
+            self._send_json({"suggestions": suggestions, "source": source})
+        except ValueError as error:
+            self._send_error_json(HTTPStatus.BAD_REQUEST, str(error))
+        except Exception as error:
+            self._send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, f"교정 제안 오류: {error}")
 
 
 def run_server(config: WebConfig) -> None:

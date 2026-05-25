@@ -15,6 +15,8 @@ const state = {
   uploadPromise: null,
   uploadToken: 0,
   templateImages: [],
+  // 저신뢰 필드 맵: fieldKey -> { text, candidates, confidence }
+  lowConfidenceMap: {},
 };
 
 const fileInput = document.getElementById("file-input");
@@ -111,9 +113,14 @@ function renderFormEditor() {
   formEditor.className = form.fields.length ? "stacked-fields" : "stacked-fields hidden";
   form.fields.forEach((field) => {
     const wrapper = document.createElement("label");
-    wrapper.className = "stacked-field";
-    wrapper.innerHTML = `<span>${field.label}</span>`;
+    const lcInfo = state.lowConfidenceMap[field.name];
+    wrapper.className = `stacked-field${lcInfo ? " low-confidence-field" : ""}`;
+    wrapper.innerHTML = `<span>${field.label}${lcInfo ? ' <span class="low-badge">⚠ 저신뢰</span>' : ""}</span>`;
     wrapper.appendChild(createFieldInput(field, state.formValues[field.name]));
+    // 저신뢰 필드에는 교정 후보 행 추가
+    if (lcInfo) {
+      appendSuggestionRow(wrapper, field, lcInfo);
+    }
     formEditor.appendChild(wrapper);
   });
 }
@@ -317,17 +324,26 @@ function renderDocument(index) {
       box.style.width = `${region.bbox.width * scaleX}px`;
       box.style.height = `${region.bbox.height * scaleY}px`;
       overlay.appendChild(box);
-      if (region.low_confidence && region.candidates.length) {
+      if (region.low_confidence) {
+        const fieldKey = region.field_name || `_ocr_${idx}`;
         const stack = document.createElement("div");
         stack.className = "candidate-stack";
         stack.style.left = `${region.bbox.x1 * scaleX}px`;
         stack.style.top = `${(region.bbox.y2 + 6) * scaleY}px`;
-        region.candidates.forEach((candidate) => {
+
+        // 기존 TrOCR 후보 칩 (클릭 시 해당 필드 값 교체)
+        (region.candidates || []).forEach((candidate) => {
           const chip = document.createElement("span");
-          chip.className = "candidate";
+          chip.className = "candidate clickable-chip";
+          chip.title = "클릭하면 이 값으로 입력";
           chip.textContent = candidate;
+          chip.addEventListener("click", () => applyCandidate(fieldKey, candidate, stack));
           stack.appendChild(chip);
         });
+
+        // AI 교정 버튼
+        const aiBtn = makeAiSuggestBtn(region.text || "", region.field_name || "", region.candidates || [], fieldKey, stack);
+        stack.appendChild(aiBtn);
         overlay.appendChild(stack);
       }
     });
@@ -468,10 +484,29 @@ async function recognize() {
     state.formValues = { ...(payload.prefill || {}) };
     state.templateImages = payload.template_images || [];
     state.currentImageIndex = 0;
+
+    // 저신뢰 필드 맵 구축
+    state.lowConfidenceMap = {};
+    let regionIdx = 0;
+    (payload.documents || []).forEach((doc) => {
+      (doc.regions || []).forEach((region) => {
+        if (region.low_confidence) {
+          const key = region.field_name || `_ocr_${regionIdx}`;
+          state.lowConfidenceMap[key] = {
+            text:       region.text || "",
+            candidates: region.candidates || [],
+            confidence: region.confidence || 0,
+          };
+        }
+        regionIdx++;
+      });
+    });
+
     renderFormPreview();
     renderCurrentImage();
     setProgress(100);
-    setStatus("인식 완료");
+    const lowCount = Object.keys(state.lowConfidenceMap).length;
+    setStatus(lowCount > 0 ? `인식 완료 — 저신뢰 항목 ${lowCount}개 (빨간 박스 확인)` : "인식 완료");
   } catch (error) {
     state.documents = [];
     state.recognitionPayload = null;
@@ -479,6 +514,122 @@ async function recognize() {
     setStatus(error.message, true);
     renderCurrentImage();
   }
+}
+
+/* ═══════════════════════════════════════════════
+   AI 교정 제안 기능
+   ═══════════════════════════════════════════════ */
+
+/** 후보 클릭 시 해당 필드 값 적용 */
+function applyCandidate(fieldKey, value, stackEl) {
+  state.formValues[fieldKey] = value;
+  document.querySelectorAll(`[name="${fieldKey}"]`).forEach((el) => {
+    el.value = value;
+  });
+  // 클릭된 칩을 선택 표시
+  if (stackEl) {
+    stackEl.querySelectorAll(".clickable-chip, .ai-chip").forEach((c) => c.classList.remove("selected-chip"));
+  }
+  setStatus(`✏️ "${value}" 로 수정되었습니다.`);
+}
+
+/** 현재 인식된 텍스트들을 문맥으로 수집 */
+function collectContextTexts() {
+  const texts = [];
+  (state.documents || []).forEach((doc) => {
+    (doc.regions || []).forEach((r) => {
+      if (r.text && r.text.trim() && !r.low_confidence) {
+        texts.push(r.text.trim());
+      }
+    });
+  });
+  return texts.slice(0, 8);
+}
+
+/** /api/suggest 호출 */
+async function fetchSuggestions(text, fieldName, candidates, contextTexts) {
+  try {
+    const resp = await fetch("/api/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        field_name: fieldName,
+        candidates,
+        context: contextTexts,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || "교정 요청 실패");
+    return data;
+  } catch (err) {
+    return { suggestions: candidates.slice(0, 3), source: "beam_search" };
+  }
+}
+
+/** AI 교정 결과 칩들을 컨테이너에 렌더링 */
+function renderSuggestionChips(container, fieldKey, suggestions, source) {
+  // 기존 AI 칩 제거
+  container.querySelectorAll(".ai-chip, .ai-label").forEach((el) => el.remove());
+
+  if (!suggestions || !suggestions.length) return;
+
+  const label = document.createElement("span");
+  label.className = "ai-label";
+  label.textContent = source === "claude" ? "🤖 AI 추천:" : "후보:";
+  container.appendChild(label);
+
+  suggestions.forEach((s) => {
+    const chip = document.createElement("span");
+    chip.className = "ai-chip clickable-chip";
+    chip.title = "클릭하면 이 값으로 입력";
+    chip.textContent = s;
+    chip.addEventListener("click", () => applyCandidate(fieldKey, s, container));
+    container.appendChild(chip);
+  });
+}
+
+/** AI 교정 버튼 생성 */
+function makeAiSuggestBtn(text, fieldName, candidates, fieldKey, stackEl) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "ai-suggest-btn";
+  btn.textContent = "🤖 AI 교정";
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "⏳ 분석 중...";
+    const ctx = collectContextTexts();
+    const result = await fetchSuggestions(text, fieldName, candidates, ctx);
+    btn.remove();
+    renderSuggestionChips(stackEl, fieldKey, result.suggestions, result.source);
+  });
+  return btn;
+}
+
+/** 폼 에디터에서 저신뢰 필드에 교정 UI 추가 */
+function appendSuggestionRow(wrapper, field, lcInfo) {
+  const row = document.createElement("div");
+  row.className = "suggestion-row";
+
+  // 기존 TrOCR 후보 칩
+  (lcInfo.candidates || []).slice(0, 3).forEach((c) => {
+    const chip = document.createElement("span");
+    chip.className = "candidate clickable-chip";
+    chip.title = "클릭하면 이 값으로 입력";
+    chip.textContent = c;
+    chip.addEventListener("click", () => {
+      applyCandidate(field.name, c, row);
+      // 폼 에디터 입력도 업데이트
+      wrapper.querySelector("input, textarea").value = c;
+    });
+    row.appendChild(chip);
+  });
+
+  // AI 교정 버튼
+  const btn = makeAiSuggestBtn(lcInfo.text, field.name, lcInfo.candidates || [], field.name, row);
+  row.appendChild(btn);
+
+  wrapper.appendChild(row);
 }
 
 /* ── 모달 열기/닫기 ── */
