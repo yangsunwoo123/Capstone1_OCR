@@ -193,6 +193,9 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
         if self._is_route(self.path, "/api/suggest"):
             self._handle_suggest()
             return
+        if self._is_route(self.path, "/api/export-pdf"):
+            self._handle_export_pdf()
+            return
         self._send_error_json(HTTPStatus.NOT_FOUND, "지원하지 않는 경로입니다.")
 
     def _handle_form_upsert(self) -> None:
@@ -466,6 +469,139 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
             self._send_error_json(HTTPStatus.BAD_REQUEST, str(error))
         except Exception as error:
             self._send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, f"교정 제안 오류: {error}")
+
+    def _handle_export_pdf(self) -> None:
+        """
+        POST /api/export-pdf
+        Body: { session_id, pages: [{image_url, width, height, regions:[{bbox,text,low_confidence}]}] }
+        → PDF 파일 (application/pdf)
+        """
+        try:
+            import io as _io
+            from PIL import Image as _Image, ImageDraw as _IDraw, ImageFont as _IFont
+
+            payload    = self._read_json_body()
+            session_id = str(payload.get("session_id", "")).strip()
+            pages      = payload.get("pages", [])
+            if not pages:
+                raise ValueError("pages 데이터가 없습니다.")
+
+            # 한국어 폰트 탐색 (Windows: Malgun Gothic, Linux/Mac: 기본폰트)
+            def _find_font(size: int) -> "_IFont.FreeTypeFont | _IFont.ImageFont":
+                font_candidates = [
+                    r"C:\Windows\Fonts\malgun.ttf",
+                    r"C:\Windows\Fonts\malgunbd.ttf",
+                    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+                    "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+                ]
+                for path in font_candidates:
+                    try:
+                        return _IFont.truetype(path, size)
+                    except (IOError, OSError):
+                        continue
+                return _IFont.load_default()
+
+            pdf_images: list[_Image.Image] = []
+
+            for page in pages:
+                # 업로드된 이미지 경로 찾기
+                image_url: str = page.get("image_url") or ""
+                # /uploads/session_id/filename 형태
+                img_path = None
+                if image_url.startswith("/uploads/"):
+                    rel = image_url.replace("/uploads/", "", 1)
+                    img_path = self.state.upload_dir / rel
+                if img_path is None or not img_path.exists():
+                    continue
+
+                with _Image.open(img_path) as raw:
+                    img = raw.convert("RGB")
+
+                draw     = _IDraw.Draw(img)
+                img_w, img_h = img.size
+                orig_w   = page.get("width",  img_w) or img_w
+                orig_h   = page.get("height", img_h) or img_h
+                sx       = img_w / orig_w
+                sy       = img_h / orig_h
+
+                for region in (page.get("regions") or []):
+                    bbox = region.get("bbox", {})
+                    text = str(region.get("text") or "").strip()
+                    if not text:
+                        continue
+
+                    x1 = round(bbox.get("x1", 0) * sx)
+                    y1 = round(bbox.get("y1", 0) * sy)
+                    x2 = round(bbox.get("x2", x1 + 50) * sx)
+                    y2 = round(bbox.get("y2", y1 + 20) * sy)
+                    bw = max(x2 - x1, 20)
+                    bh = max(y2 - y1, 14)
+
+                    # 흰 배경 덮기
+                    draw.rectangle([x1, y1, x2, y2], fill="white", outline="#22a64a", width=2)
+
+                    # 폰트 크기 = 박스 높이 × 0.65 (최소 10, 최대 28)
+                    fs     = max(10, min(28, int(bh * 0.65)))
+                    font   = _find_font(fs)
+
+                    # 텍스트가 박스에 맞도록 줄바꿈
+                    lines: list[str] = []
+                    words  = list(text)  # 한국어: 글자 단위로 처리
+                    line   = ""
+                    for ch in words:
+                        test = line + ch
+                        try:
+                            tw = font.getlength(test)
+                        except AttributeError:
+                            tw = len(test) * fs * 0.6
+                        if tw <= bw - 4:
+                            line = test
+                        else:
+                            if line:
+                                lines.append(line)
+                            line = ch
+                    if line:
+                        lines.append(line)
+
+                    # 텍스트 그리기 (중앙 정렬)
+                    total_h  = len(lines) * (fs + 2)
+                    start_y  = y1 + max(0, (bh - total_h) // 2)
+                    for li, ln in enumerate(lines):
+                        try:
+                            tw = font.getlength(ln)
+                        except AttributeError:
+                            tw = len(ln) * fs * 0.6
+                        tx = x1 + max(0, (bw - tw) // 2)
+                        ty = start_y + li * (fs + 2)
+                        draw.text((tx, ty), ln, fill="#1a4f26", font=font)
+
+                pdf_images.append(img)
+
+            if not pdf_images:
+                raise ValueError("PDF로 변환할 페이지가 없습니다.")
+
+            # PDF 바이트 생성
+            buf = _io.BytesIO()
+            pdf_images[0].save(
+                buf,
+                format="PDF",
+                save_all=True,
+                append_images=pdf_images[1:],
+                resolution=150,
+            )
+            pdf_bytes = buf.getvalue()
+
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition", 'attachment; filename="recognition_result.pdf"')
+            self.send_header("Content-Length", str(len(pdf_bytes)))
+            self.end_headers()
+            self.wfile.write(pdf_bytes)
+
+        except ValueError as error:
+            self._send_error_json(HTTPStatus.BAD_REQUEST, str(error))
+        except Exception as error:
+            self._send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, f"PDF 생성 오류: {error}")
 
 
 def run_server(config: WebConfig) -> None:

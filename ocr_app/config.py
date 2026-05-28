@@ -39,7 +39,7 @@ MAX_FORM_TEMPLATE_BYTES = 10 * 1024 * 1024
 @dataclass(slots=True)
 class ModelConfig:
     model_name: str = "ddobokki/ko-trocr"
-    confidence_threshold: float = 0.5
+    confidence_threshold: float = 0.40
     candidate_count: int = 3
 
 

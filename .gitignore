@@ -39,3 +39,4 @@ Thumbs.db
 
 # API 키 (절대 git에 올리지 말것!)
 .env
+.gstack/
